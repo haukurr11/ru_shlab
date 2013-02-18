@@ -2,7 +2,7 @@
  * tsh - A tiny shell program with job control
  *
  * You __MUST__ add your user information here below
- * 
+ *hallo 
  * === User information ===
  * Group: Team Dolan
  * User 1: haukurr11 
