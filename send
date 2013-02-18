@@ -1,0 +1,4 @@
+#!/bin/sh
+git add tsh.c
+git commit -m "update"
+git push -u origin master
