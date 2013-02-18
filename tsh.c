@@ -159,7 +159,24 @@ int main(int argc, char **argv)
 
     exit(0); /* control never reaches here */
 }
-  
+
+
+
+pid_t Fork(void)
+{
+    pid_t pid;
+    if((pid = fork())<0)
+        unix_error("Fork error");
+    return pid;
+}
+int builtin_command(char **argv)
+{
+    if (!strcmp(argv[0], "quit"))/* quit command */
+    exit(0);
+    if (!strcmp(argv[0], "&")) /* Ignore singleton & */
+        return 1;
+    return 0; /* Not a builtin command */
+} 
 /* 
  * eval - Evaluate the command line that the user has just typed in
  * 
@@ -171,8 +188,10 @@ int main(int argc, char **argv)
  * background children don't receive SIGINT (SIGTSTP) from the kernel
  * when we type ctrl-c (ctrl-z) at the keyboard.  
 */
+
 void eval(char *cmdline)
 {
+
     char *argv[MAXARGS];/* Argument list execve() */
     char buf[MAXLINE]; /* Holds modified command line */
     int bg; /* Should the job run in bg or fg? */
@@ -181,10 +200,10 @@ void eval(char *cmdline)
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
     if (argv[0] == NULL)
-    return; /* Ignore empty lines */
+        return; /* Ignore empty lines */
     if (!builtin_command(argv)) {
         if ((pid = Fork()) == 0) { /* Child runs user job */
-            if (execve(argv[0], argv, environ) &lt; 0) {
+            if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
             }
@@ -192,7 +211,7 @@ void eval(char *cmdline)
         /* Parent waits for foreground job to terminate */
         if (!bg) {
             int status;
-            if (waitpid(pid, &status, 0) &lt; 0)
+            if (waitpid(pid, &status, 0) < 0)
             unix_error("waitfg: waitpid error");
         }
         else
