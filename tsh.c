@@ -202,13 +202,14 @@ void eval(char *cmdline)
         /* Parent waits for foreground job to terminate */
         if (!bg) {
             int status;
+            addjob(jobs,pid,1,cmdline);
             if (waitpid(pid, &status, 0) < 0)
-            unix_error("waitfg: waitpid error");
+                unix_error("waitfg: waitpid error");
         }
         else
         {
-        addjob(jobs,pid,2,cmdline);
-        printf("[%d] (%d) \n", maxjid(jobs),pid);
+            addjob(jobs,pid,2,cmdline);
+            printf("[%d] (%d) \n", maxjid(jobs),pid);
         }
     }
     return;
