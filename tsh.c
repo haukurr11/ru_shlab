@@ -4,11 +4,11 @@
  * You __MUST__ add your user information here below
  * 
  * === User information ===
- * Group: NONE
+ * Group: Team Dolan
  * User 1: haukurr11 
  * SSN: 1911912269 
  * User 2: knutur11
- * SSN: 
+ * SSN: 1701834449 
  * === End User Information ===
  */
 #include <stdio.h>
