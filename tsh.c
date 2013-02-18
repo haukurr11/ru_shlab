@@ -206,7 +206,10 @@ void eval(char *cmdline)
             unix_error("waitfg: waitpid error");
         }
         else
-        printf("%d %s", pid, cmdline);
+        {
+        addjob(jobs,pid,2,cmdline);
+        printf("[%d] (%d) \n", maxjid(jobs),pid);
+        }
     }
     return;
 }
@@ -274,9 +277,14 @@ int parseline(const char *cmdline, char **argv)
 int builtin_cmd(char **argv)
 {
     if (!strcmp(argv[0], "quit"))/* quit command */
-    exit(0);
+        exit(0);
     if (!strcmp(argv[0], "&")) /* Ignore singleton & */
         return 1;
+    if(!strcmp(argv[0],"jobs"))
+     {
+        listjobs(jobs);
+        return 1;
+     }
     return 0; /* Not a builtin command */
 } 
 /* 
@@ -314,7 +322,6 @@ void sigchld_handler(int sig)
         printf("Handler reaped child %d\n",(int)pid);
     if(errno != ECHILD)
         unix_error("waitpid error");
-    sleep(2);
     return;
 }
 
@@ -370,46 +377,46 @@ int maxjid(struct job_t *jobs)
     for (i = 0; i < MAXJOBS; i++)
 	if (jobs[i].jid > max)
 	    max = jobs[i].jid;
-    return max;
+return max;
 }
 
 /* addjob - Add a job to the job list */
 int addjob(struct job_t *jobs, pid_t pid, int state, char *cmdline) 
 {
-    int i;
-    
-    if (pid < 1)
-	return 0;
+int i;
 
-    for (i = 0; i < MAXJOBS; i++) {
-	if (jobs[i].pid == 0) {
-	    jobs[i].pid = pid;
-	    jobs[i].state = state;
-	    jobs[i].jid = nextjid++;
-	    if (nextjid > MAXJOBS)
-		nextjid = 1;
-	    strcpy(jobs[i].cmdline, cmdline);
-  	    if(verbose){
-	        printf("Added job [%d] %d %s\n", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
-            }
-            return 1;
-	}
-    }
-    printf("Tried to create too many jobs\n");
-    return 0;
+if (pid < 1)
+return 0;
+
+for (i = 0; i < MAXJOBS; i++) {
+if (jobs[i].pid == 0) {
+    jobs[i].pid = pid;
+    jobs[i].state = state;
+    jobs[i].jid = nextjid++;
+    if (nextjid > MAXJOBS)
+    nextjid = 1;
+    strcpy(jobs[i].cmdline, cmdline);
+    if(verbose){
+        printf("Added job [%d] %d %s\n", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
+        }
+        return 1;
+}
+}
+printf("Tried to create too many jobs\n");
+return 0;
 }
 
 /* deletejob - Delete a job whose PID=pid from the job list */
 int deletejob(struct job_t *jobs, pid_t pid) 
 {
-    int i;
+int i;
 
-    if (pid < 1)
-	return 0;
+if (pid < 1)
+return 0;
 
-    for (i = 0; i < MAXJOBS; i++) {
-	if (jobs[i].pid == pid) {
-	    clearjob(&jobs[i]);
+for (i = 0; i < MAXJOBS; i++) {
+if (jobs[i].pid == pid) {
+    clearjob(&jobs[i]);
 	    nextjid = maxjid(jobs)+1;
 	    return 1;
 	}
@@ -470,7 +477,6 @@ int pid2jid(pid_t pid)
 void listjobs(struct job_t *jobs) 
 {
     int i;
-    
     for (i = 0; i < MAXJOBS; i++) {
 	if (jobs[i].pid != 0) {
 	    printf("[%d] (%d) ", jobs[i].jid, jobs[i].pid);
