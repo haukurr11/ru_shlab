@@ -306,6 +306,7 @@ void waitfg(pid_t pid)
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.  
  */
+//git test
 void sigchld_handler(int sig) 
 {
     pid_t pid;
