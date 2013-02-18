@@ -169,14 +169,7 @@ pid_t Fork(void)
         unix_error("Fork error");
     return pid;
 }
-int builtin_command(char **argv)
-{
-    if (!strcmp(argv[0], "quit"))/* quit command */
-    exit(0);
-    if (!strcmp(argv[0], "&")) /* Ignore singleton & */
-        return 1;
-    return 0; /* Not a builtin command */
-} 
+
 /* 
  * eval - Evaluate the command line that the user has just typed in
  * 
@@ -191,17 +184,15 @@ int builtin_command(char **argv)
 
 void eval(char *cmdline)
 {
-
     char *argv[MAXARGS];/* Argument list execve() */
     char buf[MAXLINE]; /* Holds modified command line */
     int bg; /* Should the job run in bg or fg? */
     pid_t pid; /* Process id */
-    
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
     if (argv[0] == NULL)
         return; /* Ignore empty lines */
-    if (!builtin_command(argv)) {
+    if (!builtin_cmd(argv)) {
         if ((pid = Fork()) == 0) { /* Child runs user job */
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
@@ -280,11 +271,14 @@ int parseline(const char *cmdline, char **argv)
  * builtin_cmd - If the user has typed a built-in command then execute
  *    it immediately.  
  */
-int builtin_cmd(char **argv) 
+int builtin_cmd(char **argv)
 {
-    return 0;     /* not a builtin command */
-}
-
+    if (!strcmp(argv[0], "quit"))/* quit command */
+    exit(0);
+    if (!strcmp(argv[0], "&")) /* Ignore singleton & */
+        return 1;
+    return 0; /* Not a builtin command */
+} 
 /* 
  * do_bgfg - Execute the builtin bg and fg commands
  */
