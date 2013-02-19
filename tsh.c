@@ -190,10 +190,15 @@ void eval(char *cmdline)
     pid_t pid; /* Process id */
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask,SIGCHLD);
     if (argv[0] == NULL)
         return; /* Ignore empty lines */
     if (!builtin_cmd(argv)) {
         if ((pid = Fork()) == 0) { /* Child runs user job */
+            setpgid(0,0);
+            sigprocmask(SIG_BLOCK,&mask,NULL);
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
@@ -202,13 +207,15 @@ void eval(char *cmdline)
         /* Parent waits for foreground job to terminate */
         if (!bg) {
             int status;
-            addjob(jobs,pid,1,cmdline);
+            addjob(jobs,pid,FG,cmdline);
+            sigprocmask(SIG_UNBLOCK,&mask,NULL);
             if (waitpid(pid, &status, 0) < 0)
                 unix_error("waitfg: waitpid error");
         }
         else
         {
-            addjob(jobs,pid,2,cmdline);
+            addjob(jobs,pid,BG,cmdline);
+            sigprocmask(SIG_UNBLOCK,&mask,NULL);
             printf("[%d] (%d) \n", maxjid(jobs),pid);
         }
     }
@@ -320,7 +327,10 @@ void sigchld_handler(int sig)
 {
     pid_t pid;
     while( (pid = waitpid(-1,NULL,0))>0)
-        printf("Handler reaped child %d\n",(int)pid);
+    {
+        deletejob(jobs,pid);    
+        kill(pid,sig); 
+    }
     if(errno != ECHILD)
         unix_error("waitpid error");
     return;
@@ -333,6 +343,11 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    int pid = fgpid(jobs);
+    int jid = pid2jid(pid);
+    deletejob(jobs,pid);
+    kill(pid,sig);
+    printf("Job [%d] (%d) terminated by signal %d\n",jid,pid,sig);
     return;
 }
 
@@ -343,6 +358,13 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    int pid = fgpid(jobs);
+    int parent = getppid();
+    printf("%d",parent);
+    struct job_t *job = getjobpid(jobs,pid);
+    job->state = ST;
+    kill(pid,sig);
+    kill(parent,SIGCONT);
     return;
 }
 
