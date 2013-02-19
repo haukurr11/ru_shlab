@@ -181,16 +181,14 @@ void eval(char *cmdline)
     int bg; /* Should the job run in bg or fg? */
     pid_t pid; /* Process id */
     strcpy(buf, cmdline);
-    bg = parseline(buf, argv);
+    bg = parseline(cmdline, argv);
     sigset_t mask;
     if (argv[0] == NULL)
         return; /* Ignore empty lines */
     sigemptyset(&mask);
     sigaddset(&mask,SIGCHLD);
-    sigaddset(&mask,SIGINT);
-    sigaddset(&mask,SIGTSTP);
     sigprocmask(SIG_BLOCK,&mask,NULL);
-   if (!builtin_cmd(argv)) {
+    if (!builtin_cmd(argv)) {
         if ((pid = fork()) == 0) { /* Child runs user job */
             setpgid(0,0);
             if (execve(argv[0], argv, environ) < 0) {
@@ -199,6 +197,7 @@ void eval(char *cmdline)
             }
         }
         /* Parent waits for foreground job to terminate */
+            sigprocmask(SIG_UNBLOCK,&mask,NULL);
         if (!bg) {
             addjob(jobs,pid,FG,cmdline);
             sigprocmask(SIG_UNBLOCK,&mask,NULL);
@@ -280,6 +279,11 @@ int builtin_cmd(char **argv)
         exit(0);
     if (!strcmp(argv[0], "&")) /* Ignore singleton & */
         return 1;
+    if (!strcmp(argv[0], "bg") || !strcmp(argv[0],"fg"))/* Ignore singleton & */
+    {
+        do_bgfg(argv);
+        return 1;
+    }
     if(!strcmp(argv[0],"jobs"))
      {
         listjobs(jobs);
@@ -292,6 +296,55 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    struct job_t *job = NULL;
+    if(argv[1] != NULL)
+    {
+       if( argv[1][0] == '%')
+       {
+           char *number = &argv[1][1];
+           printf("hallo");
+           int jid = atoi(number);
+           job = getjobjid(jobs,jid);
+           if(job == NULL)
+           {
+               printf("Job does not exist(JID)");
+               return;
+           }
+       }
+       else if( isdigit(argv[1][0]) )
+       {
+            pid_t pid = atoi(argv[1]);  
+            job = getjobpid(jobs,pid);
+            if(job == NULL)
+            {   
+                printf("Job does not exist(PID)");
+                return;
+            }
+       }
+       else 
+       {
+        printf("argument needs to be a jobnumber or pid");
+        return;
+       }
+    }
+    else {
+        printf("You need an argument!");
+        return;
+    }
+
+    int killpid = job->pid;
+    kill(-killpid,SIGCONT);
+    if(!strcmp(argv[0],"fg"))
+    {
+        job->state = FG;
+        waitfg(killpid);
+    }
+    else if(!strcmp(argv[0],"bg"))
+    {
+        job->state = BG;
+    }
+    else 
+        printf("do_bgfg called incorrectly");
     return;
 }
 
@@ -327,7 +380,7 @@ void sigchld_handler(int sig)
     int jid;
     int signal = -1;
     struct job_t *job; 
-    while( (pid = waitpid(-1,&status,0))>0)
+    while( (pid = waitpid(-1,&status,WNOHANG))>0)
     {
         jid = pid2jid(pid);
         job = getjobpid(jobs,pid);
@@ -378,7 +431,8 @@ void sigtstp_handler(int sig)
     if(pid == 0)
         return;
     int jid = pid2jid(pid);
-    kill(-pid,sig);
+    kill(-pid,SIGTSTP);
+    getjobpid(jobs,pid)->state = ST;
     printf("Job [%d] (%d) stopped by signal %d\n",jid,pid,sig);
     return;
 }
