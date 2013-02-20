@@ -606,6 +606,69 @@ void listjobs(struct job_t *jobs)
  * end job list helper routines
  ******************************/
 
+/******************************
+ * Our helper routines
+ ******************************/
+
+pid_t Fork(void)
+{
+	int pid =-1;
+	if((pid = fork()) < 0) 
+	{
+		unix_error("Fork Error!");
+		exit(1);
+	}
+	return pid;
+}
+
+pid_t Setgpid(pid_t pid, pid_t pgid)
+{
+	int return_pid = -1;
+	if ((return_pid = kill(pid, pgid)) < 0)
+	{
+		unix_error("Setgpid Error!");
+		exit(0);
+	}
+	return return_pid;
+}
+
+int Kill(pid_t pid, int signal)
+{
+	int return_pid = -1;
+	if((return_pid = kill(pid, signal)) < 0)
+	{
+		unix_error("Kill Error!");
+		exit(1);
+	}
+	return return_pid;
+
+}
+
+int Sigaddset(sigset_t *set, int signal)
+{
+	int re_signal;
+	if((re_signal = sigaddset(set,signal)) < 0)
+		unix_error("Sigaddset Error!");
+	return re_signal;
+}
+
+int Sigemptyset(sigset_t *set)
+{
+	int return_pid;
+	if ((member = sigemptyset(set)) < 0)
+		unix_error("Sigempyset Error!");
+	return return_pid;
+}
+
+int Sigprocmask(int sig, const sigset_t *set, sigset_t *set_last)
+{
+	int return_pid = 1;
+	if((return_pid = sigprocmask(sig, set, set_last)) < 0)
+		unix_error("Sigprocmask Error!");
+	return return pid;
+
+}
+
 
 /***********************
  * Other helper routines
