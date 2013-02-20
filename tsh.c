@@ -197,7 +197,7 @@ void eval(char *cmdline)
     if (!builtin_cmd(argv)) {
         pid = Fork();
         if (pid == 0) { /* Child runs user job */
-            Sigprocmask(SIG_UNBLOCK,&mask,NULL);
+            Sigprocmask(SIG_UNBLOCK,&mask,NULL); /* Unblock signal for child */
             Setgpid(0,0);
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
