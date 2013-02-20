@@ -187,7 +187,7 @@ void eval(char *cmdline)
     sigaddset(&mask,SIGCHLD);
     sigprocmask(SIG_BLOCK,&mask,NULL);
     if (!builtin_cmd(argv)) {
-        if ((pid = fork()) == 0) { /* Child runs user job */
+        if ((pid = Fork()) == 0) { /* Child runs user job */
             sigprocmask(SIG_UNBLOCK,&mask,NULL);
             setpgid(0,0);
             if (execve(argv[0], argv, environ) < 0) {
@@ -309,7 +309,7 @@ void do_bgfg(char **argv)
            job = getjobjid(jobs,jid);
            if(job == NULL)
            {
-               printf("Job does not exist(JID)");
+               printf("%s: No such job\n",argv[1]);
                return;
            }
        }
@@ -319,18 +319,18 @@ void do_bgfg(char **argv)
             job = getjobpid(jobs,pid);
             if(job == NULL)
             {
-                printf("Job does not exist(PID)");
+                printf("(%d): No such process\n",pid);
                 return;
             }
        }
        else
        {
-        printf("argument needs to be a jobnumber or pid");
+        printf("%s: argument must be a PID or %%jobid\n",argv[0]);
         return;
        }
     }
     else {
-        printf("You need an argument!");
+        printf("%s command requires PID or %%jobid argument\n",argv[0] );
         return;
     }
 
@@ -394,7 +394,7 @@ void sigchld_handler(int sig)
         {
             if(job != NULL)
             {
-                kill(-pid,SIGTSTP);
+                sigtstp_handler(SIGTSTP);
                 job->state=ST; 
             }
             else
@@ -402,7 +402,7 @@ void sigchld_handler(int sig)
         }
         else if( WIFSIGNALED(status) )
         {
-            kill(-pid,SIGINT);
+            sigint_handler(SIGINT);
             deletejob(jobs,pid);
         }
 
@@ -641,7 +641,6 @@ int Kill(pid_t pid, int signal)
 		exit(1);
 	}
 	return return_pid;
-
 }
 
 int Sigaddset(sigset_t *set, int signal)
@@ -655,7 +654,7 @@ int Sigaddset(sigset_t *set, int signal)
 int Sigemptyset(sigset_t *set)
 {
 	int return_pid;
-	if ((member = sigemptyset(set)) < 0)
+	if ((return_pid = sigemptyset(set)) < 0)
 		unix_error("Sigempyset Error!");
 	return return_pid;
 }
@@ -665,7 +664,7 @@ int Sigprocmask(int sig, const sigset_t *set, sigset_t *set_last)
 	int return_pid = 1;
 	if((return_pid = sigprocmask(sig, set, set_last)) < 0)
 		unix_error("Sigprocmask Error!");
-	return return pid;
+	return return_pid;
 
 }
 
