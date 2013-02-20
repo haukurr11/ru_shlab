@@ -72,6 +72,14 @@ void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
 void sigint_handler(int sig);
 
+    /*Wrapper functions that we made */
+    pid_t Fork(void);
+    pid_t Setgpid(pid_t pid, pid_t pgid);
+    int Kill(pid_t pid, int signal);
+    int Sigaddset(sigset_t *set, int signal);
+    int Sigemptyset(sigset_t *set);
+    int Sigprocmask(int sig, const sigset_t *set, sigset_t *set_last);
+
 /* Here are helper routines that we've provided for you */
 int parseline(const char *cmdline, char **argv); 
 void sigquit_handler(int sig);
@@ -183,20 +191,21 @@ void eval(char *cmdline)
     sigset_t mask;
     if (argv[0] == NULL)
         return; /* Ignore empty lines */
-    sigemptyset(&mask);
-    sigaddset(&mask,SIGCHLD);
-    sigprocmask(SIG_BLOCK,&mask,NULL);
+    Sigemptyset(&mask);
+    Sigaddset(&mask,SIGCHLD);
+    Sigprocmask(SIG_BLOCK,&mask,NULL);
     if (!builtin_cmd(argv)) {
-        if ((pid = Fork()) == 0) { /* Child runs user job */
-            sigprocmask(SIG_UNBLOCK,&mask,NULL);
-            setpgid(0,0);
+        pid = Fork();
+        if (pid == 0) { /* Child runs user job */
+            Sigprocmask(SIG_UNBLOCK,&mask,NULL);
+            Setgpid(0,0);
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
             }
         }
         /* Parent waits for foreground job to terminate */
-        sigprocmask(SIG_UNBLOCK,&mask,NULL);
+        Sigprocmask(SIG_UNBLOCK,&mask,NULL);
         if (!bg) {
             addjob(jobs,pid,FG,cmdline);
             waitfg(pid);
@@ -206,7 +215,7 @@ void eval(char *cmdline)
             addjob(jobs,pid,BG,cmdline);
             printf("[%d] (%d) %s", maxjid(jobs),pid,cmdline);
         }
-        sigprocmask(SIG_UNBLOCK,&mask,NULL);
+        Sigprocmask(SIG_UNBLOCK,&mask,NULL);
     }
     return;
 }
@@ -233,7 +242,7 @@ int parseline(const char *cmdline, char **argv)
     /* Build the argv list */
     argc = 0;
     if (*buf == '\'') {
-	buf++;
+	buf++;;
 	delim = strchr(buf, '\'');
     }
     else {
@@ -277,7 +286,7 @@ int builtin_cmd(char **argv)
         exit(0);
     else if (!strcmp(argv[0], "&")) /* Ignore singleton & */
         return 1;
-    else if (!strcmp(argv[0], "bg") || !strcmp(argv[0],"fg"))/* Ignore singleton & */
+    else if (!strcmp(argv[0], "bg") || !strcmp(argv[0],"fg"))/* Run bg or fg& */
     {
         do_bgfg(argv);
         return 1;
@@ -335,8 +344,8 @@ void do_bgfg(char **argv)
     }
 
     int killpid = job->pid;
-    kill(-killpid,SIGCONT);
-    sigprocmask(SIG_UNBLOCK,&mask,NULL);
+    Kill(-killpid,SIGCONT);
+    Sigprocmask(SIG_UNBLOCK,&mask,NULL);
     if(!strcmp(argv[0],"fg"))
     {
         job->state = FG;
@@ -394,15 +403,18 @@ void sigchld_handler(int sig)
         {
             if(job != NULL)
             {
-                sigtstp_handler(SIGTSTP);
+                Kill(-pid,SIGTSTP);
                 job->state=ST; 
+                printf("Job [%d] (%d) stopped by signal %d\n",jid,pid,20);
             }
             else
                 return;
         }
         else if( WIFSIGNALED(status) )
         {
-            sigint_handler(SIGINT);
+            if( WTERMSIG(status) == 2)
+                printf("Job [%d] (%d) terminated by signal %d\n",jid,pid,2);
+            Kill(-pid,SIGINT);
             deletejob(jobs,pid);
         }
 
@@ -424,11 +436,9 @@ void sigchld_handler(int sig)
 void sigint_handler(int sig) 
 {
     int pid = fgpid(jobs);
-     if(pid == 0)
-        return; 
-    int jid = pid2jid(pid);
-    kill(-pid,sig);
-    printf("Job [%d] (%d) terminated by signal %d\n",jid,pid,sig);
+    if(pid == 0)
+        return;
+    Kill(-pid,SIGINT);
     return;
 }
 
@@ -442,10 +452,7 @@ void sigtstp_handler(int sig)
     int pid = fgpid(jobs);
     if(pid == 0)
         return;
-    int jid = pid2jid(pid);
-    kill(-pid,SIGTSTP);
-    getjobpid(jobs,pid)->state = ST;
-    printf("Job [%d] (%d) stopped by signal %d\n",jid,pid,sig);
+    Kill(-pid,SIGTSTP);
     return;
 }
 
@@ -603,7 +610,7 @@ void listjobs(struct job_t *jobs)
     }
 }
 /******************************
- * end job list helper routines
+ * end job list helper routines;
  ******************************/
 
 /******************************
@@ -624,7 +631,7 @@ pid_t Fork(void)
 pid_t Setgpid(pid_t pid, pid_t pgid)
 {
 	int return_pid = -1;
-	if ((return_pid = kill(pid, pgid)) < 0)
+	if ((return_pid = setpgid(pid, pgid)) < 0)
 	{
 		unix_error("Setgpid Error!");
 		exit(0);
