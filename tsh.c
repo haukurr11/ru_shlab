@@ -188,17 +188,17 @@ void eval(char *cmdline)
     int bg; /* Should the job run in bg or fg? */
     pid_t pid; /* Process id */
     bg = parseline(cmdline, argv);
-    sigset_t mask;
+    sigset_t mask; /*mask for child signal(to prevent a race condition)*/
     if (argv[0] == NULL)
         return; /* Ignore empty lines */
     Sigemptyset(&mask);
     Sigaddset(&mask,SIGCHLD);
-    Sigprocmask(SIG_BLOCK,&mask,NULL);
+    Sigprocmask(SIG_BLOCK,&mask,NULL); //blog SIGCHLD from parent
     if (!builtin_cmd(argv)) {
         pid = Fork();
         if (pid == 0) { /* Child runs user job */
             Sigprocmask(SIG_UNBLOCK,&mask,NULL); /* Unblock signal for child */
-            Setgpid(0,0);
+            Setgpid(0,0); /* give the child a different group id */
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
@@ -208,7 +208,7 @@ void eval(char *cmdline)
         //Sigprocmask(SIG_UNBLOCK,&mask,NULL);
         if (!bg) {
             addjob(jobs,pid,FG,cmdline);
-            Sigprocmask(SIG_UNBLOCK,&mask,NULL);
+            Sigprocmask(SIG_UNBLOCK,&mask,NULL); /* Unblock after job added */
             waitfg(pid);
         }
         else
@@ -292,7 +292,7 @@ int builtin_cmd(char **argv)
         do_bgfg(argv);
         return 1;
     }
-    else if(!strcmp(argv[0],"jobs"))
+    else if(!strcmp(argv[0],"jobs")) /* get the list over all jobs */
      {
         listjobs(jobs);
         return 1;
@@ -304,10 +304,6 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv)
 {
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask,SIGCHLD);
-
     struct job_t *job = NULL;
     if(argv[1] != NULL)
     {
@@ -345,16 +341,20 @@ void do_bgfg(char **argv)
 
     int killpid = job->pid;
     Kill(-killpid,SIGCONT);
+    sigset_t mask; 
+    sigemptyset(&mask);
+    sigaddset(&mask,SIGCHLD);
+
     if(!strcmp(argv[0],"fg"))
     {
         job->state = FG;
-        Sigprocmask(SIG_UNBLOCK,&mask,NULL);
+        Sigprocmask(SIG_UNBLOCK,&mask,NULL); /* unblock signal after changing the state */
         waitfg(killpid);
     }
     else if(!strcmp(argv[0],"bg"))
     {
         job->state = BG;
-        Sigprocmask(SIG_UNBLOCK,&mask,NULL);
+        Sigprocmask(SIG_UNBLOCK,&mask,NULL);/* unblock signal after changing the state */
         printf("[%d] (%d) %s", job->jid,job->pid,job->cmdline);
     }
     else
@@ -371,7 +371,7 @@ void waitfg(pid_t pid)
     struct job_t *job = getjobpid(jobs,pid);
     if(job == NULL)
         return;
-    while(job->state == FG)
+    while(job->state == FG) /* job is in the foreground */
         sleep(1);
     return;
 }
@@ -387,7 +387,6 @@ void waitfg(pid_t pid)
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.  
  */
-//git test
 void sigchld_handler(int sig) 
 {
     pid_t pid;
@@ -400,7 +399,7 @@ void sigchld_handler(int sig)
         jid = pid2jid(pid);
         job = getjobpid(jobs,pid);
         signal = WSTOPSIG(status);
-        if( WIFSTOPPED(status) )
+        if( WIFSTOPPED(status) ) /* child process is stopping */
         {
             if(job != NULL)
             {
@@ -408,18 +407,21 @@ void sigchld_handler(int sig)
                 printf("Job [%d] (%d) stopped by signal %d\n",jid,pid,20);
             }
             else
+            {
+                printf("sigchld_handler error: job was not found");
                 return;
+            }
         }
         else if( WIFSIGNALED(status) )
         {
-            if( WTERMSIG(status) == 2)
+            if( WTERMSIG(status) == 2)/* child process is terminating */
             {
                 printf("Job [%d] (%d) terminated by signal %d\n",jid,pid,2);
                 deletejob(jobs,pid);
             }
         }
 
-        else if( WIFEXITED(status) )
+        else if( WIFEXITED(status) ) /* child process has exited */
         {
             deletejob(jobs,pid);
         } 
@@ -437,9 +439,9 @@ void sigchld_handler(int sig)
 void sigint_handler(int sig) 
 {
     int pid = fgpid(jobs);
-    if(pid == 0)
+    if(pid == 0) /* error */
         return;
-    Kill(-pid,SIGINT);
+    Kill(-pid,SIGINT); /* send signal to forground process*/
     return;
 }
 
@@ -451,9 +453,9 @@ void sigint_handler(int sig)
 void sigtstp_handler(int sig) 
 {
     int pid = fgpid(jobs);
-    if(pid == 0)
+    if(pid == 0) /* error */
         return;
-    Kill(-pid,SIGTSTP);
+    Kill(-pid,SIGTSTP);/* send signal to forground process*/
     return;
 }
 
@@ -615,7 +617,7 @@ void listjobs(struct job_t *jobs)
  ******************************/
 
 /******************************
- * Our helper routines
+ * Our helper wrappers 
  ******************************/
 
 pid_t Fork(void)
