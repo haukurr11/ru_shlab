@@ -296,56 +296,37 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
-    struct job_t *job = NULL;
-    if(argv[1] != NULL)
-    {
-       if( argv[1][0] == '%')
-       {
-           char *number = &argv[1][1];
-           printf("hallo");
-           int jid = atoi(number);
-           job = getjobjid(jobs,jid);
-           if(job == NULL)
-           {
-               printf("Job does not exist(JID)");
-               return;
-           }
-       }
-       else if( isdigit(argv[1][0]) )
-       {
-            pid_t pid = atoi(argv[1]);  
-            job = getjobpid(jobs,pid);
-            if(job == NULL)
-            {   
-                printf("Job does not exist(PID)");
-                return;
-            }
-       }
-       else 
-       {
-        printf("argument needs to be a jobnumber or pid");
-        return;
-       }
-    }
-    else {
-        printf("You need an argument!");
-        return;
-    }
-
-    int killpid = job->pid;
-    kill(-killpid,SIGCONT);
-    if(!strcmp(argv[0],"fg"))
-    {
-        job->state = FG;
-        waitfg(killpid);
-    }
-    else if(!strcmp(argv[0],"bg"))
-    {
-        job->state = BG;
-    }
-    else 
-        printf("do_bgfg called incorrectly");
-    return;
+  if(!strcmp(argv[0],"bg"))
+  {
+	  if(argv[1][0]=='%')
+	  {
+		  struct job_t* myjob;
+		  int jid = (int)(argv[1][1]-48);
+		  myjob = getjobjid(jobs, jid);
+		  kill(myjob->pid, SIGCONT);
+		  	printf("[%d] (%d) %s",myjob->jid,myjob->pid,myjob->cmdline);
+		  myjob->state = BG;
+	  }
+  }
+  if(!strcmp(argv[0],"fg"))
+  {
+	  if(argv[1][0] == '%')
+	  {
+		  struct job_t* myjob;
+		  int jid = (int)(argv[1][1]-48);
+		  myjob = getjobjid(jobs, jid);
+		  if(myjob->state==ST)
+		  {
+			  myjob->state=FG;
+			  kill(myjob->pid, SIGCONT);
+			  int status;
+			  waitpid(myjob->pid, &status, WUNTRACED);
+			  deletejob(jobs, myjob->pid);
+		  }
+  
+	  }
+  }
+  return;
 }
 
 /* 
