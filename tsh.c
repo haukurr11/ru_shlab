@@ -299,7 +299,7 @@ void do_bgfg(char **argv) {
     sigemptyset(&mask);
     sigaddset(&mask,SIGCHLD);
 
-    sigprocmask(SIG_UNBLOCK,&mask,NULL);
+    Sigprocmask(SIG_UNBLOCK,&mask,NULL);
     struct job_t *job = NULL;
     if(argv[1] != NULL) {
         if( argv[1][0] == '%') {
